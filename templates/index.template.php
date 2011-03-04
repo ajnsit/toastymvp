@@ -6,5 +6,6 @@
   </head>
   <body>
     <h1><?php echo $this->getVar('header'); ?></h1>
+    <h4>Page data : <?php echo $this->getVar('json'); ?></h4>
   </body>
 </html>

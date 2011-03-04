@@ -23,6 +23,10 @@
  * <li>Now any public methods defined inside the plugin class get merged into the
  *    functionality of the corresponding child class. This allows us to access
  *    plugin methods through the child class like so - $childClassObj->method().</li>
+ * <li>Child classes allow hooks. At any point inside a method (say 'foo'),
+ *     the class may call hookIn() with a string argument (say 'before').
+ *     Then at that point of time, all plugins' methods with the name 'beforeFoo'
+ *     will be invoked in order of plugin inclusion.</li>
  * </ol>
  *
  * For more information on defining new plugins, look at the documentation of the
@@ -38,8 +42,8 @@
 class HasPlugins {
   // The plugins array
   protected $plugins = array();
+
   // Private properties
-  private $_pluginproperties = array();
   private $_pluginmethods = array();
   private $_pluginobjs = array();
 
@@ -51,44 +55,26 @@ class HasPlugins {
       $plugin = new $pluginclass($this);
       $this->_pluginobjs[$pluginclass] = $plugin;
       $methods = get_class_methods($pluginclass);
-      if(is_array($methods)) foreach($methods as $method) $this->_pluginmethods[$method] = $plugin;
+      if(is_array($methods)) foreach($methods as $method) $this->_pluginmethods[$method][] = $plugin;
     }
   }
 
-  // Magic method for property isset
-  function __isset($name) {
-    if(isset($this->_pluginproperties[$name])) {
-      return isset($this->_pluginproperties[$name]->$name);
+  // The hook mechanism
+  protected function hookIn($name) {
+    list(,$caller) = debug_backtrace(false);
+    $name = $name.ucfirst($caller['function']);
+    if(isset($this->_pluginmethods[$name])) {
+      foreach($this->_pluginmethods[$name] as $plugin) {
+        $ret = call_user_func_array(array($plugin, $name), $caller['args']);
+      }
     }
-    return false;
-  }
-
-  // Magic method for property get
-  function __get($name) {
-    if(isset($this->_pluginproperties[$name])) {
-      return $this->_pluginproperties[$name]->$name;
-    }
-    return null;
-  }
-
-  // Magic method for property set
-  function __set($name, $value) {
-    if(isset($this->_pluginproperties[$name])) {
-      $this->_pluginproperties[$name]->$name = $value;
-    }
-  }
-
-  // Magic method for property unset
-  function __unset($name) {
-    if(isset($this->_pluginproperties[$name])) {
-      unset($this->_pluginproperties[$name]->$name);
-    }
+    if(isset($ret)) return $ret;
   }
 
   // Magic method for method calls
   function __call($name, $args) {
-    if(isset($this->_pluginmethods[$name]))
-      return call_user_func_array(array($this->_pluginmethods[$name], $name), $args);
+    if(isset($this->_pluginmethods[$name][0]))
+      return call_user_func_array(array($this->_pluginmethods[$name][0], $name), $args);
     echo "Can't find method $name"; die();
   }
 }
